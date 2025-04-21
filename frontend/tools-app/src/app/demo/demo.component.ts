@@ -87,7 +87,7 @@ interface Message {
   styles: [`
     .demo-container {
       padding: 20px;
-      max-width: 800px;
+      max-width: 1200px;
       margin: 0 auto;
     }
 
@@ -95,10 +95,11 @@ interface Message {
       min-height: 600px;
       display: flex;
       flex-direction: column;
+      width: 100%;
     }
 
     .chat-messages {
-      height: 400px;
+      height: 500px;
       overflow-y: auto;
       padding: 16px;
       display: flex;
@@ -107,7 +108,7 @@ interface Message {
     }
 
     .message {
-      max-width: 80%;
+      max-width: 90%;
       padding: 12px;
       border-radius: 8px;
       margin-bottom: 8px;
@@ -131,12 +132,14 @@ interface Message {
 
     .message .text {
       flex: 1;
+      width: 100%;
     }
 
     .message pre {
       white-space: pre-wrap;
       margin: 0;
       font-family: inherit;
+      width: 100%;
     }
 
     .timestamp {
@@ -159,10 +162,25 @@ interface Message {
       gap: 16px;
       padding: 16px;
       align-items: flex-start;
+      width: 100%;
     }
 
     .message-input {
       flex: 1;
+      width: 100%;
+    }
+
+    ::ng-deep .message-input .mat-mdc-form-field-infix {
+      width: 100% !important;
+    }
+
+    mat-card-content {
+      width: 100%;
+    }
+
+    mat-card-actions {
+      width: 100%;
+      padding: 0 !important;
     }
   `]
 })

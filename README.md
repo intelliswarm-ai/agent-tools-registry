@@ -149,6 +149,6 @@ frontend/tools-app/
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
+## Commands
+python -m uvicorn main:app --reload
 
-[Add your license information here]

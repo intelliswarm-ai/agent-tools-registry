@@ -1,0 +1,43 @@
+{
+    "name": "place_trade",
+    "description": "Places a new trade order in the system",
+    "endpoint": "http://localhost:8000/tools/place_trade",
+    "inputs": {
+        "symbol": {
+            "type": "string",
+            "description": "Trading symbol (e.g., AAPL, GOOGL)",
+            "required": true
+        },
+        "side": {
+            "type": "string",
+            "description": "Order side (BUY or SELL)",
+            "required": true
+        },
+        "quantity": {
+            "type": "number",
+            "description": "Number of units to trade",
+            "required": true
+        },
+        "order_type": {
+            "type": "string",
+            "description": "Type of order (MARKET or LIMIT)",
+            "required": true
+        },
+        "price": {
+            "type": "number",
+            "description": "Limit price (required for LIMIT orders)",
+            "required": false
+        }
+    },
+    "outputs": {
+        "order_id": {
+            "type": "string",
+            "description": "Unique identifier for the placed order"
+        },
+        "status": {
+            "type": "string",
+            "description": "Status of the order placement"
+        }
+    },
+    "tags": ["trading", "orders", "execution"]
+} 

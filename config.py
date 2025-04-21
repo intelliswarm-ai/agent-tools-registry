@@ -29,4 +29,4 @@ def get_settings() -> Settings:
 def verify_api_key() -> bool:
     """Verify that the OpenAI API key is properly configured."""
     settings = get_settings()
-    return bool(settings.openai_api_key and settings.openai_api_key.startswith("sk-")) 
+    return bool(settings.openai_api_key and settings.openai_api_key != "your-api-key-here") 

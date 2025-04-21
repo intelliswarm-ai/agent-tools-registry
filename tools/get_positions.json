@@ -1,0 +1,19 @@
+{
+    "name": "get_positions",
+    "description": "Retrieves current trading positions from the system",
+    "endpoint": "http://localhost:8000/tools/get_positions",
+    "inputs": {
+        "account_id": {
+            "type": "string",
+            "description": "Optional account ID to filter positions",
+            "required": false
+        }
+    },
+    "outputs": {
+        "positions": {
+            "type": "array",
+            "description": "List of current trading positions"
+        }
+    },
+    "tags": ["trading", "positions", "query"]
+} 
