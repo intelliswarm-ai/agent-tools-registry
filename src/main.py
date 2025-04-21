@@ -11,7 +11,8 @@ setup_logging()
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Agent Tools Registry API"
+    description="Agent Tools Registry API",
+    openapi_version="3.1.0"  # Latest version supported by FastAPI
 )
 
 # Configure CORS

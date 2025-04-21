@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -14,6 +14,8 @@ interface Message {
   type: 'user' | 'agent';
   timestamp: Date;
 }
+
+const CHAT_HISTORY_KEY = 'agent_chat_history';
 
 @Component({
   selector: 'app-demo',
@@ -184,7 +186,7 @@ interface Message {
     }
   `]
 })
-export class DemoComponent implements OnInit {
+export class DemoComponent implements OnInit, OnDestroy {
   messages: Message[] = [];
   userInput = '';
   loading = false;
@@ -192,12 +194,31 @@ export class DemoComponent implements OnInit {
   constructor(private agentService: AgentService) {}
 
   ngOnInit() {
-    // Add welcome message
-    this.messages.push({
-      content: 'Hello! I\'m an AI agent that can help you use various tools. Try asking me about available tools or give me a task to perform!',
-      type: 'agent',
-      timestamp: new Date()
-    });
+    // Load saved messages from localStorage
+    const savedMessages = localStorage.getItem(CHAT_HISTORY_KEY);
+    if (savedMessages) {
+      this.messages = JSON.parse(savedMessages).map((msg: any) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+    } else {
+      // Add welcome message if no saved messages
+      this.messages.push({
+        content: 'Hello! I\'m an AI agent that can help you use various tools. Try asking me about available tools or give me a task to perform!',
+        type: 'agent',
+        timestamp: new Date()
+      });
+      this.saveMessages();
+    }
+  }
+
+  ngOnDestroy() {
+    // Save messages when component is destroyed
+    this.saveMessages();
+  }
+
+  private saveMessages() {
+    localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(this.messages));
   }
 
   async sendMessage() {
@@ -209,6 +230,7 @@ export class DemoComponent implements OnInit {
       type: 'user',
       timestamp: new Date()
     });
+    this.saveMessages();
 
     const userMessage = this.userInput;
     this.userInput = '';
@@ -224,6 +246,7 @@ export class DemoComponent implements OnInit {
         type: 'agent',
         timestamp: new Date()
       });
+      this.saveMessages();
     } catch (error: any) {
       console.error('Error:', error);
       this.messages.push({
@@ -231,6 +254,7 @@ export class DemoComponent implements OnInit {
         type: 'agent',
         timestamp: new Date()
       });
+      this.saveMessages();
     } finally {
       this.loading = false;
       // Scroll to bottom after a short delay to ensure new content is rendered
