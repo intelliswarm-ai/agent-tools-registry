@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.logging import setup_logging
 from src.api.routes.tools import router as tools_router
+from src.api.routes.agent import router as agent_router
 
 # Setup logging
 setup_logging()
@@ -16,7 +17,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -24,6 +25,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(tools_router, prefix="/api/tools", tags=["tools"])
+app.include_router(agent_router, prefix="/agent", tags=["agent"])
 
 @app.get("/health")
 async def health_check():

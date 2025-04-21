@@ -23,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include routers with proper prefixes
 app.include_router(tools_router, prefix="/tools", tags=["tools"])
 app.include_router(agent_router, prefix="/agent", tags=["agent"])
 

@@ -19,8 +19,8 @@ class ToolInfo(BaseModel):
     name: str
     description: str
     tags: List[str] = []
-    inputs: Optional[Dict[str, Any]] = None
-    outputs: Optional[Dict[str, Any]] = None
+    inputs: Dict[str, Any] = {}
+    outputs: Dict[str, Any] = {}
 
 class ToolListResponse(BaseModel):
     """Response model for tool listing."""
@@ -30,24 +30,25 @@ class ToolListResponse(BaseModel):
 async def list_tools():
     """List all available tools."""
     try:
+        logger.info("Listing available tools")
         agent = DynamicAgent()
         agent.refresh_tools()
         
         tools = []
-        for name, data in agent._tools_dict.items():
+        for name, data in agent.tools.items():
             tools.append(ToolInfo(
                 name=name,
                 description=data.get("description", "No description available"),
                 tags=data.get("tags", []),
-                inputs=data.get("inputs"),
-                outputs=data.get("outputs")
+                inputs=data.get("inputs", {}),
+                outputs=data.get("outputs", {})
             ))
         
         logger.info(f"Retrieved {len(tools)} tools")
         return ToolListResponse(tools=tools)
         
     except Exception as e:
-        log_error(e, logger)
+        logger.error(f"Failed to list tools: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list tools: {str(e)}"
@@ -88,17 +89,18 @@ async def execute_tool(request: ToolExecuteRequest):
 async def refresh_tools():
     """Refresh the list of available tools."""
     try:
+        logger.info("Refreshing tools list")
         agent = DynamicAgent()
         agent.refresh_tools()
         
         tools = []
-        for name, data in agent._tools_dict.items():
+        for name, data in agent.tools.items():
             tools.append(ToolInfo(
                 name=name,
                 description=data.get("description", "No description available"),
                 tags=data.get("tags", []),
-                inputs=data.get("inputs"),
-                outputs=data.get("outputs")
+                inputs=data.get("inputs", {}),
+                outputs=data.get("outputs", {})
             ))
         
         response_data = {
@@ -106,12 +108,11 @@ async def refresh_tools():
             "message": "Tools refreshed successfully",
             "tools": tools
         }
-        log_response_details(response_data, logger)
-        
+        logger.info(f"Refreshed {len(tools)} tools")
         return response_data
         
     except Exception as e:
-        log_error(e, logger)
+        logger.error(f"Failed to refresh tools: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to refresh tools: {str(e)}"

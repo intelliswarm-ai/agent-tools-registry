@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
-import { HttpClient } from '@angular/common/http';
+import { AgentService } from '../services/agent.service';
 
 interface Message {
   content: string;
@@ -189,7 +189,7 @@ export class DemoComponent implements OnInit {
   userInput = '';
   loading = false;
 
-  constructor(private http: HttpClient) {}
+  constructor(private agentService: AgentService) {}
 
   ngOnInit() {
     // Add welcome message
@@ -215,26 +215,33 @@ export class DemoComponent implements OnInit {
     this.loading = true;
 
     try {
-      // Send request to backend
-      const response = await this.http.post<{response: string}>(
-        'http://localhost:8000/agent/run',
-        { input: userMessage }
-      ).toPromise();
+      // Send request to backend using agent service
+      const response = await this.agentService.executeAgent(userMessage).toPromise();
 
       // Add agent response
       this.messages.push({
-        content: response?.response || 'Sorry, I encountered an error.',
+        content: response?.data?.result || response?.message || 'Sorry, I encountered an error.',
         type: 'agent',
         timestamp: new Date()
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error:', error);
       this.messages.push({
-        content: 'Sorry, I encountered an error while processing your request.',
+        content: error?.error?.detail || 'Sorry, I encountered an error while processing your request.',
         type: 'agent',
         timestamp: new Date()
       });
     } finally {
       this.loading = false;
+      // Scroll to bottom after a short delay to ensure new content is rendered
+      setTimeout(() => this.scrollToBottom(), 100);
+    }
+  }
+
+  private scrollToBottom(): void {
+    const chatContainer = document.querySelector('.chat-messages');
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
     }
   }
 } 

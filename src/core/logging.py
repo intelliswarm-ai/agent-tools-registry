@@ -1,6 +1,7 @@
 import logging
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+from pathlib import Path
 
 from loguru import logger
 
@@ -47,44 +48,56 @@ def format_record(record: Dict[str, Any]) -> str:
 
 def setup_logging() -> None:
     """
-    Configures logging using loguru with a custom format and handlers.
-    - Removes default loguru handler
-    - Adds custom formatted handler to stdout
-    - Adds custom formatted handler to file
-    - Intercepts standard logging
+    Configures logging with consistent formatting across all loggers.
+    - Sets up root logger
+    - Configures console and file handlers
+    - Ensures log directory exists
     """
-    # Remove default handler
-    logger.remove()
-
-    # Add stdout handler
-    logger.add(
-        sys.stdout,
-        enqueue=True,
-        backtrace=True,
-        format=format_record,
-        level="INFO",
+    # Create logs directory if it doesn't exist
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    # Configure formatter
+    formatter = logging.Formatter(
+        '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
     )
-
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    
+    # Remove any existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Add console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+    root_logger.addHandler(console_handler)
+    
     # Add file handler
-    logger.add(
-        "logs/app.log",
-        rotation="500 MB",
-        retention="10 days",
-        enqueue=True,
-        backtrace=True,
-        format=format_record,
-        level="INFO",
-    )
-
-    # Intercept standard logging
-    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
-
+    file_handler = logging.FileHandler(log_dir / "app.log")
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
+    
     # Disable uvicorn access logging
     logging.getLogger("uvicorn.access").disabled = True
 
-def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance with the specified name."""
-    return logging.getLogger(name)
+def get_logger(name: Optional[str] = None) -> logging.Logger:
+    """
+    Get a logger instance with proper configuration.
+    Logger will inherit configuration from root logger.
+    
+    Args:
+        name: Optional name for the logger
+        
+    Returns:
+        Configured logger instance
+    """
+    return logging.getLogger(name or __name__)
 
 def log_request_details(request_data: Dict[str, Any], logger: logging.Logger) -> None:
     """Log details about an incoming request."""
@@ -95,5 +108,5 @@ def log_response_details(response_data: Dict[str, Any], logger: logging.Logger) 
     logger.info(f"Response data: {response_data}")
 
 def log_error(error: Exception, logger: logging.Logger) -> None:
-    """Log error details."""
+    """Log error details with full traceback."""
     logger.error(f"Error occurred: {str(error)}", exc_info=True) 
