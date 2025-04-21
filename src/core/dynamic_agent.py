@@ -11,15 +11,20 @@ from pydantic import BaseModel, Field
 import requests
 import json
 from functools import partial
-from config import get_settings, verify_api_key
+from src.core.config import get_settings, verify_api_key
 import time
 import logging
 import os
 import httpx
 import asyncio
+from datetime import datetime
+from src.core.errors import ToolExecutionError, ToolNotFoundError, ToolValidationError, ToolTimeoutError
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,  # Change to DEBUG level
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class ToolSpec(BaseModel):
@@ -41,40 +46,50 @@ class DynamicAgent:
         max_retries: int = 5,
         retry_delay: int = 2
     ):
-        logger.info("Initializing DynamicAgent...")
-        settings = get_settings()
-        
-        if not verify_api_key():
-            logger.error("OpenAI API key not properly configured")
-            raise ValueError(
-                "OpenAI API key is not properly configured. "
-                "Please set it in your .env file or environment variables."
+        try:
+            logger.info("Initializing DynamicAgent...")
+            self.settings = get_settings()
+            
+            # Debug log the tools directory path
+            logger.debug(f"Tools directory path from settings: {self.settings.TOOLS_DIR}")
+            logger.debug(f"Absolute tools directory path: {os.path.abspath(self.settings.TOOLS_DIR)}")
+            
+            self.registry_url = registry_url or self.settings.TOOLS_REGISTRY_URL
+            logger.info(f"Using registry URL: {self.registry_url}")
+            
+            # Initialize OpenAI if API key is available
+            self.llm = None
+            if verify_api_key():
+                logger.info(f"Initializing ChatOpenAI with model: {llm_model or self.settings.OPENAI_MODEL}")
+                self.llm = ChatOpenAI(
+                    model=llm_model or self.settings.OPENAI_MODEL,
+                    temperature=temperature if temperature is not None else self.settings.OPENAI_TEMPERATURE,
+                    openai_api_key=self.settings.OPENAI_API_KEY
+                )
+            else:
+                logger.warning("OpenAI API key not configured. Agent will operate in tools-only mode.")
+            
+            self.verbose = verbose
+            self.max_retries = max_retries
+            self.retry_delay = retry_delay
+            self.memory = ConversationBufferMemory(
+                memory_key="chat_history",
+                return_messages=True
             )
-        
-        self.registry_url = registry_url or settings.tools_registry_url
-        logger.info(f"Using registry URL: {self.registry_url}")
-        
-        logger.info(f"Initializing ChatOpenAI with model: {llm_model or settings.openai_model}")
-        self.llm = ChatOpenAI(
-            model=llm_model or settings.openai_model,
-            temperature=temperature if temperature is not None else settings.openai_temperature,
-            openai_api_key=settings.openai_api_key
-        )
-        
-        self.verbose = verbose
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True
-        )
-        self._tools = None
-        self._agent_executor = None
-        self._tools_dict = {}
-        
-        # Load tools from local files
-        self.refresh_tools()
-        logger.info("DynamicAgent initialization complete")
+            self._tools = None
+            self._agent_executor = None
+            self._tools_dict = {}
+            
+            # Load tools from local files
+            self.refresh_tools()
+            logger.info("DynamicAgent initialization complete")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize DynamicAgent: {str(e)}")
+            raise ToolExecutionError(
+                message="Failed to initialize DynamicAgent",
+                details={"error": str(e)}
+            )
 
     @property
     def tools(self):
@@ -125,7 +140,7 @@ class DynamicAgent:
     @property
     def agent_executor(self):
         """Lazy initialization of agent executor."""
-        if self._agent_executor is None:
+        if self._agent_executor is None and self.llm is not None:
             logger.info("Creating agent executor...")
             self._agent_executor = self._create_agent_executor()
         return self._agent_executor
@@ -285,6 +300,12 @@ Remember to be conversational and helpful while guiding users through the availa
         """Run the agent with the given input."""
         try:
             logger.info(f"Starting agent run with input: {input_text}")
+            
+            if self.llm is None:
+                error_msg = "OpenAI API key not configured. Cannot run agent in tools-only mode."
+                logger.error(error_msg)
+                return error_msg
+                
             start_time = time.time()
 
             # Log the current state of tools
@@ -351,139 +372,170 @@ Remember to be conversational and helpful while guiding users through the availa
         help_text += "\nTo use a tool, simply describe your task and I'll help you choose and use the most appropriate tool."
         return help_text
 
-    def refresh_tools(self):
-        """Refresh the available tools from the registry."""
+    def refresh_tools(self) -> List[Dict[str, Any]]:
+        """
+        Refresh the list of available tools from the tools directory.
+        Returns a list of tool information dictionaries.
+        """
         try:
-            logger.info("Starting tools refresh")
-            self._tools_dict = {}
+            logger.info("Refreshing tools from directory")
+            logger.debug(f"Tools directory path: {self.settings.TOOLS_DIR}")
+            self._tools_dict.clear()
+            tools_info = []
+
+            if not os.path.exists(self.settings.TOOLS_DIR):
+                logger.warning(f"Tools directory not found: {self.settings.TOOLS_DIR}")
+                return []
+
+            definitions_dir = os.path.join(self.settings.TOOLS_DIR, "definitions")
+            logger.debug(f"Looking for tool definitions in: {definitions_dir}")
             
-            # Add a default help tool that's always available
-            self._tools_dict["help"] = {
-                "name": "help",
-                "description": "Lists all available tools and their descriptions, grouped by category. Use this tool to discover what capabilities are available.",
-                "endpoint": "/help",
-                "inputs": {
-                    "query": {
-                        "type": "string",
-                        "description": "Optional. Any text query about tools (can be empty).",
-                        "required": False
-                    }
-                },
-                "outputs": {
-                    "tools": {
-                        "type": "string",
-                        "description": "Formatted list of available tools and their descriptions"
-                    }
-                },
-                "tags": ["system"],
-                "example": "Just ask 'What tools are available?' or 'What can you help me with?'"
-            }
+            if not os.path.exists(definitions_dir):
+                logger.warning(f"Tool definitions directory not found: {definitions_dir}")
+                return []
+
+            for filename in os.listdir(definitions_dir):
+                if filename.endswith('.json'):
+                    try:
+                        file_path = os.path.join(definitions_dir, filename)
+                        logger.debug(f"Loading tool from: {file_path}")
+                        
+                        with open(file_path, 'r') as f:
+                            tool_config = json.load(f)
+                            
+                        tool_info = self._load_tool(tool_config)
+                        if tool_info:
+                            tools_info.append(tool_info)
+                            logger.debug(f"Successfully loaded tool: {tool_info['name']}")
+                        else:
+                            logger.warning(f"Failed to load tool from {filename}")
+                            
+                    except Exception as e:
+                        logger.error(f"Error loading tool from {filename}: {str(e)}")
+                        continue
+
+            logger.info(f"Successfully loaded {len(tools_info)} tools")
+            return tools_info
             
-            # Ensure the URL ends with a trailing slash for consistency
-            registry_url = self.registry_url.rstrip('/') + '/'
-            logger.info(f"Fetching tools from: {registry_url}")
+        except Exception as e:
+            logger.error(f"Error refreshing tools: {str(e)}")
+            raise ToolExecutionError(
+                message="Failed to refresh tools",
+                details={"error": str(e)}
+            )
+
+    async def execute_tool(self, tool_name: str, inputs: Dict[str, Any], timeout: int = 30) -> Dict[str, Any]:
+        """
+        Execute a tool with the given inputs.
+        
+        Args:
+            tool_name: Name of the tool to execute
+            inputs: Dictionary of input parameters
+            timeout: Maximum execution time in seconds
             
-            try:
-                response = requests.get(registry_url, timeout=10)
-                logger.info(f"Registry response status: {response.status_code}")
-                logger.info(f"Registry response headers: {response.headers}")
+        Returns:
+            Dictionary containing the tool execution results
+            
+        Raises:
+            ToolNotFoundError: If the specified tool doesn't exist
+            ToolValidationError: If the inputs are invalid
+            ToolTimeoutError: If execution exceeds timeout
+            ToolExecutionError: For other execution errors
+        """
+        logger.info(f"Executing tool: {tool_name}")
+        
+        # Check if tool exists
+        if tool_name not in self.tools:
+            raise ToolNotFoundError(
+                message=f"Tool '{tool_name}' not found",
+                tool_name=tool_name
+            )
+            
+        tool_config = self.tools[tool_name]
+        
+        # Validate inputs against schema
+        validation_errors = {}
+        for param_name, param_schema in tool_config['inputs'].items():
+            if param_name not in inputs:
+                if param_schema.get('required', True):
+                    validation_errors[param_name] = "Missing required parameter"
+            else:
+                # Add type validation here if needed
+                pass
                 
-                if response.status_code == 307:  # Handle redirect
-                    redirect_url = response.headers['Location']
-                    logger.info(f"Following redirect to: {redirect_url}")
-                    response = requests.get(redirect_url, timeout=10)
+        if validation_errors:
+            raise ToolValidationError(
+                message="Invalid tool parameters",
+                tool_name=tool_name,
+                validation_errors=validation_errors
+            )
+            
+        try:
+            # Make API call to execute tool
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.settings.TOOLS_API_URL}/execute/{tool_name}",
+                    json=inputs,
+                    timeout=timeout
+                )
                 
                 if response.status_code != 200:
-                    logger.error(f"Failed to fetch tools. Status code: {response.status_code}")
-                    logger.error(f"Response content: {response.text}")
-                else:
-                    try:
-                        tools_data = response.json()
-                        logger.info(f"Fetched {len(tools_data)} tools from registry")
-                        
-                        for tool_data in tools_data:
-                            tool_name = tool_data.get('name')
-                            if tool_name:
-                                logger.info(f"Adding tool: {tool_name}")
-                                # Ensure the endpoint is properly formatted
-                                if 'endpoint' in tool_data:
-                                    if not tool_data['endpoint'].startswith('http'):
-                                        base_url = self.registry_url.rstrip('/').rsplit('/', 1)[0]
-                                        tool_data['endpoint'] = f"{base_url}{tool_data['endpoint']}"
-                                self._tools_dict[tool_name] = tool_data
-                            else:
-                                logger.warning(f"Skipping tool - missing name: {tool_data}")
-                    except ValueError as e:
-                        logger.error(f"Failed to parse JSON response: {str(e)}")
-                        logger.error(f"Response content: {response.text}")
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Request failed: {str(e)}")
-
-            # Reset the tools cache to force re-fetching
-            self._tools = None
-            logger.info(f"Tools refresh completed. Total tools: {len(self._tools_dict)}")
-            
-            # Log the available tools
-            logger.info("Available tools:")
-            for tool_name, tool_data in self._tools_dict.items():
-                logger.info(f"- {tool_name}: {tool_data.get('description', 'No description')} (endpoint: {tool_data.get('endpoint', 'No endpoint')})")
+                    raise ToolExecutionError(
+                        message=f"Tool execution failed with status {response.status_code}",
+                        tool_name=tool_name,
+                        details=response.text
+                    )
+                    
+                return response.json()
                 
+        except httpx.TimeoutException:
+            raise ToolTimeoutError(
+                message=f"Tool execution timed out after {timeout} seconds",
+                tool_name=tool_name,
+                timeout=timeout
+            )
+            
         except Exception as e:
-            logger.error(f"Error refreshing tools: {str(e)}", exc_info=True)
-            # Don't raise the exception, just log it
-            # This allows the agent to continue with at least the default help tool
+            raise ToolExecutionError(
+                message=str(e),
+                tool_name=tool_name
+            )
 
-    async def execute_tool(self, tool_name: str, inputs: Dict[str, Any]) -> Any:
-        """Execute a specific tool with the given inputs."""
+    def _load_tool(self, tool_config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Load a tool from its configuration dictionary.
+        Returns the tool information if successful, None otherwise.
+        """
         try:
-            logger.info(f"Executing tool: {tool_name}")
+            logger.debug(f"Loading tool configuration: {tool_config}")
             
-            if tool_name not in self._tools_dict:
-                error_msg = f"Tool not found: {tool_name}"
-                logger.error(error_msg)
-                raise Exception(error_msg)
+            # Validate required fields
+            required_fields = ['name', 'description', 'inputs', 'outputs']
+            for field in required_fields:
+                if field not in tool_config:
+                    logger.warning(f"Tool config missing required field: {field}")
+                    return None
 
-            tool_data = self._tools_dict[tool_name]
+            # Add the tool to our registry
+            tool_name = tool_config['name']
+            logger.info(f"Loading tool: {tool_name}")
             
-            # Handle the help tool specially
-            if tool_name == "help":
-                return {
-                    "tools": [
-                        {
-                            "name": name,
-                            "description": data.get("description", "No description available"),
-                            "tags": data.get("tags", [])
-                        }
-                        for name, data in self._tools_dict.items()
-                    ]
-                }
+            # Store the tool in our dictionary
+            self._tools_dict[tool_name] = tool_config
+            logger.debug(f"Added tool {tool_name} to registry")
             
-            endpoint = tool_data.get('endpoint')
-            required_inputs = tool_data.get('required_inputs', [])
-
-            # Validate required inputs
-            for required_input in required_inputs:
-                if required_input not in inputs:
-                    error_msg = f"Missing required input: {required_input}"
-                    logger.error(error_msg)
-                    raise Exception(error_msg)
-
-            logger.info(f"Making API call to endpoint: {endpoint}")
-            async with httpx.AsyncClient() as client:
-                response = await client.post(endpoint, json=inputs)
-                response.raise_for_status()
-                result = response.json()
-                logger.info(f"Tool execution successful: {tool_name}")
-                return result
-
-        except httpx.HTTPError as e:
-            error_msg = f"HTTP error executing tool {tool_name}: {str(e)}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
+            return {
+                'name': tool_name,
+                'description': tool_config['description'],
+                'inputs': tool_config['inputs'],
+                'outputs': tool_config['outputs'],
+                'tags': tool_config.get('tags', []),
+                'example': tool_config.get('example', '')
+            }
+            
         except Exception as e:
-            error_msg = f"Error executing tool {tool_name}: {str(e)}"
-            logger.error(error_msg)
-            raise
+            logger.error(f"Error loading tool configuration: {str(e)}")
+            return None
 
 # Example usage
 if __name__ == "__main__":

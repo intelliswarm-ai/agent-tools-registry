@@ -1,0 +1,13 @@
+{
+    "name": "help",
+    "description": "Lists all available tools and their descriptions",
+    "endpoint": "/api/v1/tools/help",
+    "inputs": {},
+    "outputs": {
+        "tools": {
+            "type": "array",
+            "description": "List of available tools with their descriptions"
+        }
+    },
+    "tags": ["system", "utility"]
+} 

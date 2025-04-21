@@ -11,20 +11,37 @@ export interface Position {
 }
 
 export interface ToolInput {
-  [key: string]: string | number | object;
+  type: string;
+  description: string;
+  required?: boolean;
 }
 
 export interface ToolOutput {
-  [key: string]: any;
+  type: string;
+  description: string;
 }
 
 export interface Tool {
   name: string;
   description: string;
-  inputs: ToolInput;
-  outputs: ToolOutput;
+  inputs?: { [key: string]: ToolInput };
+  outputs?: { [key: string]: ToolOutput };
   tags: string[];
-  endpoint: string;
+}
+
+export interface ToolListResponse {
+  tools: Tool[];
+}
+
+export interface ToolExecuteRequest {
+  tool_name: string;
+  inputs: { [key: string]: any };
+}
+
+export interface ToolExecuteResponse {
+  success: boolean;
+  tool_name: string;
+  result: any;
 }
 
 @Injectable({
@@ -41,9 +58,21 @@ export class ApiService {
     return this.http.get<{ positions: Position[] }>(`${this.apiUrl}/get_positions`);
   }
 
-  getTools(): Observable<Tool[]> {
+  getTools(): Observable<ToolListResponse> {
     const url = `${this.apiUrl}/tools`;
     console.log('Fetching tools from:', url); // Debug log
-    return this.http.get<Tool[]>(url);
+    return this.http.get<ToolListResponse>(url);
+  }
+
+  executeTool(request: ToolExecuteRequest): Observable<ToolExecuteResponse> {
+    const url = `${this.apiUrl}/tools/execute`;
+    console.log('Executing tool at:', url);
+    return this.http.post<ToolExecuteResponse>(url, request);
+  }
+
+  refreshTools(): Observable<ToolListResponse> {
+    const url = `${this.apiUrl}/tools/refresh`;
+    console.log('Refreshing tools from:', url);
+    return this.http.post<ToolListResponse>(url, {});
   }
 }

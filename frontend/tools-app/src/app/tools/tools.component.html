@@ -1,66 +1,79 @@
 <div class="tools-container">
-  <mat-card>
-    <mat-card-header>
-      <mat-card-title>Available Tools</mat-card-title>
-      <mat-card-subtitle>List of supported agent tools and their specifications</mat-card-subtitle>
-    </mat-card-header>
-    
-    <mat-card-content>
-      <div *ngIf="loading" class="loading-spinner">
-        <mat-spinner diameter="40"></mat-spinner>
-      </div>
+  <div class="tools-header">
+    <h2>Available Tools</h2>
+    <button mat-icon-button (click)="refreshTools()" [disabled]="loading">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </div>
 
-      <div *ngIf="error" class="error-message">
+  <div *ngIf="loading" class="loading-container">
+    <mat-spinner diameter="40"></mat-spinner>
+    <p>Loading tools...</p>
+  </div>
+
+  <div *ngIf="error" class="error-container">
+    <mat-card appearance="outlined">
+      <mat-card-content>
         <mat-icon color="warn">error</mat-icon>
         <span>{{ error }}</span>
-        <button mat-button color="primary" (click)="fetchTools()">Retry</button>
-      </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
 
-      <div *ngIf="!loading && !error" class="tools-list">
-        <mat-accordion>
-          <mat-expansion-panel *ngFor="let tool of tools">
+  <div *ngIf="!loading && !error && tools.length === 0" class="no-tools-container">
+    <mat-card appearance="outlined">
+      <mat-card-content>
+        <mat-icon>info</mat-icon>
+        <span>No tools available. Click refresh to check again.</span>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div *ngIf="!loading && tools.length > 0" class="tools-grid">
+    <mat-card *ngFor="let tool of tools" class="tool-card" appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>{{ tool.name }}</mat-card-title>
+        <mat-card-subtitle>
+          <mat-chip-set>
+            <mat-chip *ngFor="let tag of tool.tags">{{ tag }}</mat-chip>
+          </mat-chip-set>
+        </mat-card-subtitle>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <p>{{ tool.description }}</p>
+        
+        <mat-accordion *ngIf="tool.inputs || tool.outputs">
+          <mat-expansion-panel>
             <mat-expansion-panel-header>
-              <mat-panel-title>
-                {{ tool.name }}
-              </mat-panel-title>
-              <mat-panel-description>
-                {{ tool.description }}
-              </mat-panel-description>
+              <mat-panel-title>Details</mat-panel-title>
             </mat-expansion-panel-header>
-
-            <div class="tool-details">
-              <div class="tool-section">
-                <h3>Tags</h3>
-                <mat-chip-set>
-                  <mat-chip *ngFor="let tag of tool.tags">{{ tag }}</mat-chip>
-                </mat-chip-set>
-              </div>
-
-              <div class="tool-section">
-                <h3>Endpoint</h3>
-                <code>{{ tool.endpoint }}</code>
-              </div>
-
-              <div class="tool-section">
-                <h3>Inputs</h3>
-                <pre>{{ tool.inputs | json }}</pre>
-              </div>
-
-              <div class="tool-section">
-                <h3>Outputs</h3>
-                <pre>{{ tool.outputs | json }}</pre>
-              </div>
+            
+            <div *ngIf="tool.inputs">
+              <h4>Inputs:</h4>
+              <ul>
+                <li *ngFor="let input of tool.inputs | keyvalue">
+                  <strong>{{ input.key }}</strong>: {{ input.value.description }}
+                  <span *ngIf="input.value.required" class="required-badge">Required</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div *ngIf="tool.outputs">
+              <h4>Outputs:</h4>
+              <ul>
+                <li *ngFor="let output of tool.outputs | keyvalue">
+                  <strong>{{ output.key }}</strong>: {{ output.value.description }}
+                </li>
+              </ul>
             </div>
           </mat-expansion-panel>
         </mat-accordion>
-      </div>
-    </mat-card-content>
-
-    <mat-card-actions align="end">
-      <button mat-button color="primary" (click)="fetchTools()" [disabled]="loading">
-        <mat-icon>refresh</mat-icon>
-        Refresh
-      </button>
-    </mat-card-actions>
-  </mat-card>
+      </mat-card-content>
+      
+      <mat-card-actions align="end">
+        <button mat-button color="primary">Execute</button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
 </div>
