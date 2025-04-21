@@ -1,0 +1,57 @@
+.positions-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h2 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.loading, .error, .no-positions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.loading p, .error p, .no-positions p {
+  margin-top: 10px;
+  color: #666;
+}
+
+.error {
+  color: #d32f2f;
+}
+
+.error button {
+  margin-top: 20px;
+}
+
+.positions-table {
+  width: 100%;
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.positions-table th {
+  background-color: #f5f5f5;
+  font-weight: 500;
+  color: #333;
+}
+
+.positions-table td, .positions-table th {
+  padding: 12px 16px;
+  text-align: left;
+}
+
+.positions-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.positions-table tr:hover {
+  background-color: #f0f0f0;
+} 

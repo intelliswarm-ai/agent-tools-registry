@@ -1,0 +1,66 @@
+<div class="tools-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Available Tools</mat-card-title>
+      <mat-card-subtitle>List of supported agent tools and their specifications</mat-card-subtitle>
+    </mat-card-header>
+    
+    <mat-card-content>
+      <div *ngIf="loading" class="loading-spinner">
+        <mat-spinner diameter="40"></mat-spinner>
+      </div>
+
+      <div *ngIf="error" class="error-message">
+        <mat-icon color="warn">error</mat-icon>
+        <span>{{ error }}</span>
+        <button mat-button color="primary" (click)="fetchTools()">Retry</button>
+      </div>
+
+      <div *ngIf="!loading && !error" class="tools-list">
+        <mat-accordion>
+          <mat-expansion-panel *ngFor="let tool of tools">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                {{ tool.name }}
+              </mat-panel-title>
+              <mat-panel-description>
+                {{ tool.description }}
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="tool-details">
+              <div class="tool-section">
+                <h3>Tags</h3>
+                <mat-chip-set>
+                  <mat-chip *ngFor="let tag of tool.tags">{{ tag }}</mat-chip>
+                </mat-chip-set>
+              </div>
+
+              <div class="tool-section">
+                <h3>Endpoint</h3>
+                <code>{{ tool.endpoint }}</code>
+              </div>
+
+              <div class="tool-section">
+                <h3>Inputs</h3>
+                <pre>{{ tool.inputs | json }}</pre>
+              </div>
+
+              <div class="tool-section">
+                <h3>Outputs</h3>
+                <pre>{{ tool.outputs | json }}</pre>
+              </div>
+            </div>
+          </mat-expansion-panel>
+        </mat-accordion>
+      </div>
+    </mat-card-content>
+
+    <mat-card-actions align="end">
+      <button mat-button color="primary" (click)="fetchTools()" [disabled]="loading">
+        <mat-icon>refresh</mat-icon>
+        Refresh
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</div>

@@ -1,0 +1,105 @@
+.positions-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h2 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.loading, .error, .no-positions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.loading p, .error p, .no-positions p {
+  margin-top: 10px;
+  color: #666;
+}
+
+.error {
+  color: #d32f2f;
+}
+
+.error button {
+  margin-top: 20px;
+}
+
+.positions-table {
+  width: 100%;
+  background: white;
+}
+
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1rem;
+  color: #f44336;
+  background-color: #fee8e7;
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+
+mat-card {
+  margin-bottom: 20px;
+}
+
+.mat-mdc-header-row {
+  background-color: #f5f5f5;
+}
+
+.mat-mdc-row:hover {
+  background-color: #f8f8f8;
+}
+
+.mat-mdc-cell, .mat-mdc-header-cell {
+  padding: 16px;
+}
+
+/* Column styles */
+.mat-column-symbol {
+  font-weight: 500;
+  padding-left: 24px !important;
+}
+
+.mat-column-market_value,
+.mat-column-avg_entry_price,
+.mat-column-qty {
+  text-align: right;
+  padding-right: 24px !important;
+}
+
+/* Card styles */
+mat-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+mat-card-title {
+  margin-bottom: 8px !important;
+  font-size: 20px !important;
+  font-weight: 500 !important;
+}
+
+mat-card-subtitle {
+  color: rgba(0,0,0,0.6) !important;
+}
+
+mat-card-actions {
+  padding: 16px !important;
+  border-top: 1px solid rgba(0,0,0,0.12);
+}

@@ -7,10 +7,20 @@ if not hasattr(ssl, 'SSLContext'):
     sys.exit(1)
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from tools.place_trade.run import router as trade_router
 from tools_registry import router as registry_router
 
-app = FastAPI(title="AI Tool Registry")
+app = FastAPI(title="Agent Tools Registry")
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],  # Angular dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Register routers
 app.include_router(registry_router)
