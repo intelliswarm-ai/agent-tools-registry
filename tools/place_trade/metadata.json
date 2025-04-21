@@ -1,0 +1,8 @@
+{
+    "name": "place_trade",
+    "description": "Place a trade order using Alpaca (paper trading).",
+    "inputs": {"symbol": "string", "side": "string", "qty": "float", "type": "string", "limit_price": "float"},
+    "outputs": {"status": "string", "order_id": "string"},
+    "tags": ["trading", "execution", "finance"],
+    "endpoint": "http://localhost:8000/place_trade"
+} 
