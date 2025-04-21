@@ -1,0 +1,17 @@
+{
+  "name": "get_positions",
+  "description": "Retrieve current trading positions from Alpaca (paper trading).",
+  "inputs": {},
+  "outputs": {
+    "positions": [
+      {
+        "symbol": "string",
+        "qty": "float",
+        "avg_entry_price": "float",
+        "market_value": "float"
+      }
+    ]
+  },
+  "tags": ["trading", "portfolio", "finance"],
+  "endpoint": "http://localhost:8000/get_positions"
+} 
