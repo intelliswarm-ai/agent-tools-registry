@@ -1,0 +1,36 @@
+{
+    "name": "web_search",
+    "description": "Search the web for real-time information",
+    "version": "1.0.0",
+    "tags": ["web", "search", "utility"],
+    "module_path": "src/tools/examples/web_search.py",
+    "class_name": "WebSearchTool",
+    "args_schema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "The search query to look up"
+            }
+        },
+        "required": ["query"]
+    },
+    "return_schema": {
+        "type": "object",
+        "properties": {
+            "results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "snippet": {"type": "string"},
+                        "url": {"type": "string"}
+                    }
+                },
+                "description": "Search results from the web"
+            }
+        },
+        "required": ["results"]
+    }
+} 

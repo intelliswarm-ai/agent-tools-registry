@@ -1,0 +1,28 @@
+{
+    "name": "calculator",
+    "description": "Performs basic arithmetic calculations",
+    "version": "1.0.0",
+    "tags": ["math", "utility"],
+    "module_path": "src/tools/examples/calculator",
+    "class_name": "CalculatorTool",
+    "args_schema": {
+        "type": "object",
+        "properties": {
+            "expression": {
+                "type": "string",
+                "description": "The mathematical expression to evaluate (e.g., '2 + 2')"
+            }
+        },
+        "required": ["expression"]
+    },
+    "return_schema": {
+        "type": "object",
+        "properties": {
+            "result": {
+                "type": "number",
+                "description": "The result of the calculation"
+            }
+        },
+        "required": ["result"]
+    }
+} 

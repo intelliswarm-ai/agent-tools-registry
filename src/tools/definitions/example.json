@@ -1,0 +1,33 @@
+{
+    "name": "example",
+    "description": "An example tool that processes messages",
+    "version": "1.0.0",
+    "tags": ["example", "demo"],
+    "module_path": "src/tools/examples/example_tool",
+    "class_name": "ExampleTool",
+    "args_schema": {
+        "type": "object",
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "The message to process"
+            },
+            "count": {
+                "type": "integer",
+                "description": "Number of times to repeat the message",
+                "default": 1
+            }
+        },
+        "required": ["message"]
+    },
+    "return_schema": {
+        "type": "object",
+        "properties": {
+            "result": {
+                "type": "string",
+                "description": "The processed message"
+            }
+        },
+        "required": ["result"]
+    }
+} 

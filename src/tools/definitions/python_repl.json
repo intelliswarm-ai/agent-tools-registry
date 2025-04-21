@@ -1,0 +1,18 @@
+{
+    "name": "python_repl",
+    "description": "Execute Python code and return the output",
+    "version": "1.0.0",
+    "tags": ["development", "code", "python"],
+    "module_path": "src/tools/examples/python_repl",
+    "class_name": "PythonREPLTool",
+    "args_schema": {
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "string",
+                "description": "The Python code to execute"
+            }
+        },
+        "required": ["code"]
+    }
+} 

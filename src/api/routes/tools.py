@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
+import os
 
-from src.core.logging import get_logger, log_request_details, log_response_details, log_error
-from src.core.config import settings
-from src.core.dynamic_agent import DynamicAgent
+from src.core.logging import get_logger
+from src.core.registry import ToolRegistry
+from src.core.errors import ToolValidationError, ToolNotFoundError
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -19,30 +20,33 @@ class ToolInfo(BaseModel):
     name: str
     description: str
     tags: List[str] = []
-    inputs: Dict[str, Any] = {}
-    outputs: Dict[str, Any] = {}
+    version: str = "1.0.0"
+    args_schema: Dict[str, Any] = {}
 
 class ToolListResponse(BaseModel):
     """Response model for tool listing."""
     tools: List[ToolInfo]
+
+# Create a global registry instance
+registry = ToolRegistry()
 
 @router.get("/", response_model=ToolListResponse)
 async def list_tools():
     """List all available tools."""
     try:
         logger.info("Listing available tools")
-        agent = DynamicAgent()
-        agent.refresh_tools()
         
-        tools = []
-        for name, data in agent.tools.items():
-            tools.append(ToolInfo(
-                name=name,
-                description=data.get("description", "No description available"),
-                tags=data.get("tags", []),
-                inputs=data.get("inputs", {}),
-                outputs=data.get("outputs", {})
-            ))
+        # Get tools from registry
+        tools = [
+            ToolInfo(
+                name=tool.name,
+                description=tool.description,
+                tags=tool.tags,
+                version=tool.version,
+                args_schema=tool.args_schema.schema() if tool.args_schema else {}
+            )
+            for tool in registry.get_tools_for_agent()
+        ]
         
         logger.info(f"Retrieved {len(tools)} tools")
         return ToolListResponse(tools=tools)
@@ -58,28 +62,42 @@ async def list_tools():
 async def execute_tool(request: ToolExecuteRequest):
     """Execute a specific tool."""
     try:
-        log_request_details(request.dict(), logger)
+        logger.info(f"Executing tool: {request.tool_name}")
         
-        agent = DynamicAgent()
-        result = await agent.execute_tool(request.tool_name, request.inputs)
-        
+        # Get tool from registry
+        tool = registry.get_tool(request.tool_name)
+        if not tool:
+            raise ToolNotFoundError(request.tool_name)
+            
+        # Execute the tool
+        if hasattr(tool, '_arun'):
+            result = await tool._arun(**request.inputs)
+        else:
+            result = tool._run(**request.inputs)
+            
         response_data = {
             "success": True,
             "tool_name": request.tool_name,
             "result": result
         }
-        log_response_details(response_data, logger)
+        logger.info(f"Tool execution successful: {request.tool_name}")
         
         return response_data
         
-    except ValueError as e:
-        log_error(e, logger)
+    except ToolNotFoundError as e:
+        logger.error(f"Tool not found: {str(e)}")
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+    except ToolValidationError as e:
+        logger.error(f"Tool validation error: {str(e)}")
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
     except Exception as e:
-        log_error(e, logger)
+        logger.error(f"Tool execution failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Tool execution failed: {str(e)}"
@@ -90,18 +108,25 @@ async def refresh_tools():
     """Refresh the list of available tools."""
     try:
         logger.info("Refreshing tools list")
-        agent = DynamicAgent()
-        agent.refresh_tools()
         
-        tools = []
-        for name, data in agent.tools.items():
-            tools.append(ToolInfo(
-                name=name,
-                description=data.get("description", "No description available"),
-                tags=data.get("tags", []),
-                inputs=data.get("inputs", {}),
-                outputs=data.get("outputs", {})
-            ))
+        # Clear and reload tools
+        registry._tools.clear()
+        # Use absolute path from workspace root
+        tools_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "tools", "definitions")
+        logger.info(f"Loading tools from: {tools_dir}")
+        registry.load_tools_from_directory(tools_dir)
+        
+        # Get updated tool list
+        tools = [
+            ToolInfo(
+                name=tool.name,
+                description=tool.description,
+                tags=tool.tags,
+                version=tool.version,
+                args_schema=tool.args_schema.schema() if tool.args_schema else {}
+            )
+            for tool in registry.get_tools_for_agent()
+        ]
         
         response_data = {
             "success": True,

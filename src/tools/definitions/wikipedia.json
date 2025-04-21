@@ -1,0 +1,41 @@
+{
+    "name": "wikipedia",
+    "description": "Search and retrieve information from Wikipedia",
+    "version": "1.0.0",
+    "tags": ["search", "knowledge", "wikipedia"],
+    "module_path": "src/tools/examples/wikipedia.py",
+    "class_name": "WikipediaTool",
+    "args_schema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "The search query or article title"
+            },
+            "language": {
+                "type": "string",
+                "description": "Language code for the Wikipedia version",
+                "default": "en"
+            }
+        },
+        "required": ["query"]
+    },
+    "return_schema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "The title of the Wikipedia article"
+            },
+            "summary": {
+                "type": "string",
+                "description": "A summary of the article content"
+            },
+            "url": {
+                "type": "string",
+                "description": "URL to the full Wikipedia article"
+            }
+        },
+        "required": ["title", "summary", "url"]
+    }
+} 

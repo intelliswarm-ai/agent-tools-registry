@@ -73,7 +73,27 @@ class DynamicAgent:
         ]
         
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a helpful AI assistant that can use tools to help users."),
+            ("system", """You are a helpful AI assistant that can use tools to help users. 
+            IMPORTANT: You MUST use the available tools for their specific purposes. Do not try to answer directly.
+            
+            For calculations:
+            - ALWAYS use the calculator tool
+            - NEVER try to calculate the answer yourself
+            - Example: If asked "what is 2x3", use the calculator tool with expression "2*3"
+            
+            For listing tools:
+            - ALWAYS use the help tool
+            - NEVER list tools manually
+            
+            Available tools:
+            {tools}
+            
+            Remember:
+            1. Always use tools when available
+            2. Never answer directly if a tool exists for the task
+            3. For calculations, always use the calculator tool
+            4. For tool listings, always use the help tool
+            5. If you're not sure which tool to use, ask the user for clarification"""),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
@@ -83,6 +103,7 @@ class DynamicAgent:
             "input": lambda x: x["input"],
             "agent_scratchpad": lambda x: format_to_openai_functions(x["intermediate_steps"]),
             "chat_history": lambda x: x["chat_history"],
+            "tools": lambda _: "\n".join([f"- {tool.name}: {tool.description}" for tool in tools])
         } | prompt | self.llm | OpenAIFunctionsAgentOutputParser()
         
         return AgentExecutor.from_agent_and_tools(
@@ -126,7 +147,7 @@ class DynamicAgent:
             self.logger.info(f"Loading tool: {tool_config.get('name', 'unknown')}")
             
             # Validate required fields
-            required_fields = ["name", "description", "inputs", "outputs"]
+            required_fields = ["name", "description", "args_schema", "module_path", "class_name"]
             missing_fields = [field for field in required_fields if field not in tool_config]
             if missing_fields:
                 self.logger.warning(f"Tool missing required fields: {missing_fields}")
@@ -148,57 +169,44 @@ class DynamicAgent:
         
         if tool_name not in self.tools:
             self.logger.error(f"Tool not found: {tool_name}")
-            raise ToolNotFoundError(f"Tool not found: {tool_name}", tool_name=tool_name)
+            raise ToolNotFoundError(tool_name)
             
         tool = self.tools[tool_name]
         if not tool.get("enabled", True):
             self.logger.warning(f"Attempted to execute disabled tool: {tool_name}")
-            raise ToolPermissionError(
-                f"Tool is disabled: {tool_name}",
-                tool_name=tool_name,
-                required_permissions=[]
-            )
+            raise ToolPermissionError(tool_name, [])
             
         try:
             # Validate inputs
             self.logger.debug("Validating tool inputs")
             self._validate_inputs(tool, inputs)
             
-            # Special handling for help tool - process locally
-            if tool_name == 'help':
-                self.logger.info("Processing help tool request")
-                tools_list = self.list_tools()
-                return {
-                    "status": "success",
-                    "tools": tools_list
-                }
-            
-            # For trading tool, provide mock response for demo
-            if tool_name == 'trading':
-                self.logger.info("Processing trading tool request")
-                operation = inputs.get('operation')
-                symbol = inputs.get('symbol')
-                quantity = inputs.get('quantity')
-                
-                # Mock response
-                response = {
-                    "status": "success",
-                    "operation": operation,
-                    "symbol": symbol,
-                    "quantity": quantity,
-                    "message": f"Successfully processed {operation} order for {quantity if quantity else ''} {symbol}"
-                }
-                self.logger.info(f"Trading tool response: {response}")
-                return response
+            # Special handling for calculator tool
+            if tool_name == 'calculator':
+                self.logger.info("Processing calculator request")
+                expression = inputs.get('expression', '').replace('x', '*')
+                self.logger.debug(f"Calculating expression: {expression}")
+                try:
+                    # Using eval is not safe for production, this is just an example
+                    result = eval(expression, {"__builtins__": {}}, {})
+                    self.logger.info(f"Calculator result: {result}")
+                    return {
+                        "status": "success",
+                        "result": float(result)
+                    }
+                except Exception as e:
+                    self.logger.error(f"Calculator error: {str(e)}")
+                    raise ToolExecutionError(
+                        message=f"Failed to evaluate expression: {str(e)}",
+                        tool_name=tool_name,
+                        details={"error": str(e)}
+                    )
             
             # For other tools that need HTTP execution
             endpoint = tool.get("endpoint")
             if not endpoint:
                 self.logger.error(f"Tool endpoint not configured for {tool_name}")
-                return {
-                    "status": "error",
-                    "message": "Tool endpoint not configured"
-                }
+                raise ToolValidationError(tool_name, {"endpoint": "missing required configuration"})
             
             # Execute tool via HTTP request
             timeout = tool.get("timeout", 30)
@@ -214,36 +222,42 @@ class DynamicAgent:
                     
                     if response.status_code != 200:
                         self.logger.error(f"Tool execution failed with status {response.status_code}: {response.text}")
-                        return {
-                            "status": "error",
-                            "message": f"Request failed with status {response.status_code}"
-                        }
+                        raise ToolExecutionError(
+                            message=f"Request failed with status {response.status_code}",
+                            tool_name=tool_name,
+                            details={"status_code": response.status_code, "response": response.text}
+                        )
                         
                     result = response.json()
                     self.logger.info(f"Tool execution successful: {tool_name}")
                     self.logger.debug(f"Tool response: {result}")
                     return result
+                    
             except httpx.TimeoutException:
                 self.logger.error(f"Request timed out for tool {tool_name}")
-                return {
-                    "status": "error",
-                    "message": f"Request timed out after {timeout} seconds"
-                }
+                raise ToolTimeoutError(tool_name, timeout)
+                
             except Exception as e:
                 self.logger.error(f"HTTP request failed for tool {tool_name}: {str(e)}", exc_info=True)
-                return {
-                    "status": "error",
-                    "message": f"Failed to execute request: {str(e)}"
-                }
+                raise ToolExecutionError(
+                    message=f"Failed to execute request: {str(e)}",
+                    tool_name=tool_name,
+                    details={"error": str(e)}
+                )
                 
-        except ToolValidationError as e:
-            self.logger.error(f"Validation error for tool {tool_name}: {str(e)}")
+        except (ToolValidationError, ToolTimeoutError, ToolExecutionError, ToolPermissionError, ToolNotFoundError) as e:
+            # These errors are already logged when raised
             return {
                 "status": "error",
-                "message": f"Invalid inputs: {str(e)}"
+                "message": str(e),
+                "details": {
+                    "tool_name": e.tool_name,
+                    **getattr(e, "details", {})
+                }
             }
+            
         except Exception as e:
-            self.logger.error(f"Error executing tool {tool_name}: {str(e)}", exc_info=True)
+            self.logger.error(f"Unexpected error executing tool {tool_name}: {str(e)}", exc_info=True)
             return {
                 "status": "error",
                 "message": f"Tool execution failed: {str(e)}"
@@ -253,10 +267,10 @@ class DynamicAgent:
         """Validate tool inputs against schema."""
         self.logger.debug(f"Validating inputs for tool {tool['name']}")
         validation_errors = {}
-        required_inputs = {
-            name: schema for name, schema in tool["inputs"].items()
-            if schema.get("required", False)
-        }
+        
+        # Get the required inputs from args_schema
+        args_schema = tool.get("args_schema", {})
+        required_inputs = args_schema.get("required", [])
         
         # Check for missing required inputs
         for name in required_inputs:
@@ -266,7 +280,6 @@ class DynamicAgent:
         if validation_errors:
             self.logger.error(f"Validation errors: {validation_errors}")
             raise ToolValidationError(
-                "Invalid tool inputs",
                 tool_name=tool["name"],
                 validation_errors=validation_errors
             )
@@ -288,67 +301,50 @@ class DynamicAgent:
                 self.logger.debug(f"Greeting response: {greeting}")
                 return greeting
 
+            # Handle calculator requests directly
+            if any(cmd in message_lower for cmd in ['calculate', 'calculator', 'math', 'compute', 'multiply', 'times', 'x']) or any(op in message for op in ['+', '-', '*', '/', 'x']):
+                self.logger.info("Processing calculator request")
+                
+                # Extract the expression from the message
+                import re
+                # First try to match explicit calculation requests
+                expression_match = re.search(r'(?:calculate|compute|what is|what\'s|multiply|times|x)\s+(.+)', message_lower)
+                
+                if not expression_match:
+                    # If no explicit request, assume the entire message is the expression
+                    expression = message.strip()
+                else:
+                    expression = expression_match.group(1).strip()
+                
+                # Convert 'x' to '*' for multiplication
+                expression = expression.replace('x', '*')
+                
+                self.logger.debug(f"Extracted expression: {expression}")
+                
+                try:
+                    self.logger.info(f"Using calculator tool for expression: {expression}")
+                    result = await self.execute_tool('calculator', {"expression": expression})
+                    if result.get("status") == "error":
+                        return f"Error calculating expression: {result.get('message', 'Unknown error')}"
+                    return f"The result of {expression} is {result.get('result')}"
+                except Exception as e:
+                    self.logger.error(f"Calculator error: {str(e)}")
+                    return f"Error calculating expression: {str(e)}"
+
             # If asking for help or about available tools
             if 'help' in message_lower or 'tools' in message_lower or 'what can you do' in message_lower:
                 self.logger.info("Processing help request")
-                result = await self.execute_tool('help', {})
-                if result.get("status") == "error":
-                    self.logger.warning("Help tool failed, falling back to direct tool listing")
-                    tools_list = self.list_tools()
-                    response = "Here are the available tools:\n\n"
-                    for tool in tools_list:
-                        response += f"- {tool['name']}: {tool['description']}\n"
-                    self.logger.debug(f"Help response: {response}")
-                    return response
-                response = "Here are the available tools:\n" + json.dumps(result.get("tools", []), indent=2)
+                tools_list = self.list_tools()
+                response = "Here are the available tools:\n\n"
+                for tool in tools_list:
+                    response += f"- {tool['name']}: {tool['description']}\n"
+                    if tool.get('inputs'):
+                        response += "  Inputs:\n"
+                        for input_name, input_schema in tool['inputs'].items():
+                            required = input_schema.get('required', False)
+                            response += f"    - {input_name}{' (required)' if required else ''}\n"
+                    response += "\n"
                 self.logger.debug(f"Help response: {response}")
-                return response
-
-            # Handle trading commands
-            if any(cmd in message_lower for cmd in ['buy', 'sell', 'trade', 'status']):
-                self.logger.info("Processing trading command")
-                # Extract trading parameters from message
-                operation = 'status'  # default operation
-                if 'buy' in message_lower:
-                    operation = 'buy'
-                elif 'sell' in message_lower:
-                    operation = 'sell'
-
-                # Simple regex to extract symbol and quantity
-                import re
-                symbol_match = re.search(r'(?:of|for|symbol)\s+([A-Z]+)', message.upper())
-                quantity_match = re.search(r'(\d+)\s+(?:shares?|units?)?', message)
-
-                symbol = symbol_match.group(1) if symbol_match else None
-                quantity = float(quantity_match.group(1)) if quantity_match else None
-
-                if not symbol and operation != 'status':
-                    self.logger.warning("No symbol provided for trading operation")
-                    return "Please specify a trading symbol (e.g., AAPL, GOOGL, etc.)"
-
-                inputs = {
-                    "operation": operation,
-                    "symbol": symbol
-                }
-                if quantity:
-                    inputs["quantity"] = quantity
-
-                self.logger.debug(f"Executing trading tool with inputs: {inputs}")
-                result = await self.execute_tool('trading', inputs)
-                
-                if result.get("status") == "error":
-                    self.logger.error(f"Trading operation failed: {result.get('message', 'Unknown error')}")
-                    return f"Trading operation failed: {result.get('message', 'Unknown error')}"
-                    
-                response = (
-                    f"Trading operation completed:\n"
-                    f"Operation: {result.get('operation')}\n"
-                    f"Symbol: {result.get('symbol')}\n"
-                    f"Quantity: {result.get('quantity', 'N/A')}\n"
-                    f"Status: {result.get('status')}\n"
-                    f"Message: {result.get('message', '')}"
-                )
-                self.logger.debug(f"Trading response: {response}")
                 return response
 
             # For other messages, use the agent

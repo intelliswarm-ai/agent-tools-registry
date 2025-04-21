@@ -1,34 +1,46 @@
 {
     "name": "trading",
-    "description": "Execute trading operations",
-    "endpoint": "/api/v1/tools/trading",
-    "inputs": {
-        "operation": {
-            "type": "string",
-            "description": "The trading operation to perform",
-            "required": true,
-            "enum": ["buy", "sell", "status"]
+    "description": "Execute trading operations and get market data",
+    "version": "1.0.0",
+    "tags": ["trading", "finance"],
+    "module_path": "src/tools/examples/trading.py",
+    "class_name": "TradingTool",
+    "args_schema": {
+        "type": "object",
+        "properties": {
+            "symbol": {
+                "type": "string",
+                "description": "The trading symbol (e.g., AAPL, BTC-USD)"
+            },
+            "operation": {
+                "type": "string",
+                "enum": ["buy", "sell", "quote"],
+                "description": "The trading operation to perform"
+            },
+            "amount": {
+                "type": "number",
+                "description": "Amount to buy/sell (optional for quotes)",
+                "default": 0
+            }
         },
-        "symbol": {
-            "type": "string",
-            "description": "The trading symbol",
-            "required": true
-        },
-        "quantity": {
-            "type": "number",
-            "description": "The quantity to trade",
-            "required": false
-        }
+        "required": ["symbol", "operation"]
     },
-    "outputs": {
-        "status": {
-            "type": "string",
-            "description": "The status of the operation"
+    "return_schema": {
+        "type": "object",
+        "properties": {
+            "success": {
+                "type": "boolean",
+                "description": "Whether the operation was successful"
+            },
+            "price": {
+                "type": "number",
+                "description": "Current price or execution price"
+            },
+            "details": {
+                "type": "object",
+                "description": "Additional operation details"
+            }
         },
-        "message": {
-            "type": "string",
-            "description": "Detailed message about the operation"
-        }
-    },
-    "tags": ["trading", "finance"]
+        "required": ["success", "price"]
+    }
 } 

@@ -1,13 +1,37 @@
 {
     "name": "help",
-    "description": "Lists all available tools and their descriptions",
-    "endpoint": "/api/v1/tools/help",
-    "inputs": {},
-    "outputs": {
-        "tools": {
-            "type": "array",
-            "description": "List of available tools with their descriptions"
-        }
+    "description": "Lists available tools and their descriptions",
+    "version": "1.0.0",
+    "tags": ["utility", "help"],
+    "module_path": "src/tools/examples/help.py",
+    "class_name": "HelpTool",
+    "args_schema": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Optional search query to filter tools",
+                "default": ""
+            }
+        },
+        "required": []
     },
-    "tags": ["system", "utility"]
+    "return_schema": {
+        "type": "object",
+        "properties": {
+            "tools": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "description": {"type": "string"},
+                        "tags": {"type": "array", "items": {"type": "string"}}
+                    }
+                },
+                "description": "List of available tools"
+            }
+        },
+        "required": ["tools"]
+    }
 } 
