@@ -28,6 +28,8 @@ The Agent Tools Registry is a full-stack application that provides a user-friend
 - FastAPI
 - Python
 - SSL support for secure communications
+- LangChain for AI agent capabilities
+- OpenAI GPT models for natural language understanding
 
 ## Getting Started
 
@@ -36,6 +38,28 @@ The Agent Tools Registry is a full-stack application that provides a user-friend
 - PNPM package manager
 - Python 3.8+
 - pip (Python package manager)
+- OpenAI API key
+
+### Configuration
+
+1. **Create Environment File**
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   ```
+
+2. **Set up OpenAI API Key**
+   - Get your API key from [OpenAI's platform](https://platform.openai.com/api-keys)
+   - Add it to your `.env` file:
+     ```
+     OPENAI_API_KEY=sk-your-api-key-here
+     ```
+   - Optionally configure other settings in the `.env` file:
+     ```
+     OPENAI_MODEL=gpt-3.5-turbo
+     OPENAI_TEMPERATURE=0
+     TOOLS_REGISTRY_URL=http://localhost:8000/tools
+     ```
 
 ### Installation
 
@@ -88,8 +112,10 @@ frontend/tools-app/
 ### Backend Structure
 ```
 ├── main.py                 # FastAPI application entry point
-├── tools/                  # Tool implementations
-└── tools_registry/         # Registry management
+├── config.py              # Configuration management
+├── dynamic_agent.py       # LangChain agent implementation
+├── tools/                 # Tool implementations
+└── tools_registry/        # Registry management
 ```
 
 ## Features in Detail
@@ -106,6 +132,23 @@ frontend/tools-app/
 - Typed interfaces for API responses
 - Environment-based configuration
 
+### AI Agent
+- Dynamic tool discovery and usage
+- Natural language understanding
+- Secure API key management
+- Configurable model parameters
+
+## Security Notes
+
+- Never commit your `.env` file to version control
+- Keep your OpenAI API key secure and rotate it regularly
+- Use environment variables in production
+- Consider implementing rate limiting for API endpoints
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+[Add your license information here]
